@@ -1,39 +1,37 @@
-
 const express = require('express');
+const cors = require('cors');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const cors = require('cors');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 app.use(cors());
 app.use(express.static('public'));
 
 app.get('/extract', async (req, res) => {
   const { url } = req.query;
-
-  if (!url) return res.status(400).json({ error: 'URL is required' });
+  if (!url) return res.status(400).json({ error: 'URL missing' });
 
   try {
     const response = await axios.get(url);
     const $ = cheerio.load(response.data);
-    const results = [];
 
-    $('iframe').each((_, el) => results.push($(el).attr('src')));
-    $('video').each((_, el) => results.push($(el).attr('src')));
-    $('source').each((_, el) => results.push($(el).attr('src')));
+    const sources = [];
 
-    const htmlText = $.html();
-    const m3u8Regex = /(https?:\/\/[^\s"'<>]+\.m3u8)/g;
-    const m3u8Matches = htmlText.match(m3u8Regex);
-    if (m3u8Matches) results.push(...m3u8Matches);
+    $('video, source, iframe, embed, script').each((_, el) => {
+      const src = $(el).attr('src');
+      if (src && /\.(m3u8|mp4|mpd|mov|avi|webm)/.test(src)) {
+        sources.push(src);
+      }
+    });
 
-    const unique = [...new Set(results)].filter(Boolean);
-    res.json({ sources: unique });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch or parse URL.' });
+    res.json({ sources });
+  } catch (error) {
+    res.status(500).json({ error: 'Extraction failed' });
   }
 });
 
-app.listen(PORT, () => console.log(`Running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});

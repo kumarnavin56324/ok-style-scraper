@@ -1,49 +1,67 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Source Extractor Tool</title>
+  <title>Media Source Extractor</title>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #999; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    textarea { width: 100%; height: 100px; }
+  </style>
 </head>
 <body>
-  <h2>Media Source Extractor</h2>
-  <input type="text" id="url" placeholder="Enter website URL" size="50" />
+  <h2>Media Source Extractor (Multi-URL)</h2>
+  <textarea id="url" placeholder="Enter multiple URLs, one per line"></textarea><br><br>
   <button onclick="extract()">Extract URLs</button>
-  <button onclick="copyText()">Copy Result</button>
+  <button onclick="copyTable()">Copy Table</button>
   <button onclick="exportCSV()">Export CSV</button>
   <button onclick="clearAll()">Clear</button>
-  <br><br>
-  <textarea id="output" rows="10" style="width: 100%;"></textarea>
+
+  <div id="output"></div>
 
   <script>
     async function extract() {
-      const url = document.getElementById("url").value;
-      const output = document.getElementById("output");
-      output.value = "Extracting...";
-
-      const res = await fetch(`/extract?url=${encodeURIComponent(url)}`);
-      const data = await res.json();
-
-      if (data.sources) {
-        output.value = data.sources.join('\n');
-      } else {
-        output.value = "No sources found.";
+      const urls = document.getElementById("url").value.trim().split(/\n+/);
+      let table = "<table><tr><th>Infringing URL</th><th>Source URL</th></tr>";
+      for (let url of urls) {
+        if (!url) continue;
+        try {
+          const res = await fetch("/extract?url=" + encodeURIComponent(url));
+          const data = await res.json();
+          if (data.sources && data.sources.length > 0) {
+            data.sources.forEach(src => {
+              table += `<tr><td>${url}</td><td>${src}</td></tr>`;
+            });
+          } else {
+            table += `<tr><td>${url}</td><td>No sources found</td></tr>`;
+          }
+        } catch (e) {
+          table += `<tr><td>${url}</td><td>Error fetching</td></tr>`;
+        }
       }
+      table += "</table>";
+      document.getElementById("output").innerHTML = table;
     }
 
-    function copyText() {
-      const text = document.getElementById("output");
-      text.select();
-      document.execCommand("copy");
+    function copyTable() {
+      const table = document.getElementById("output").innerText;
+      navigator.clipboard.writeText(table);
     }
 
     function exportCSV() {
-      const text = document.getElementById("output").value.split("\n");
-      const csv = "data:text/csv;charset=utf-8," + text.map(e => `"${e}"`).join("\n");
-      const encodedUri = encodeURI(csv);
+      let csv = "Infringing URL,Source URL\n";
+      document.querySelectorAll("table tr").forEach((row, i) => {
+        if (i === 0) return;
+        const cells = row.querySelectorAll("td");
+        const line = Array.from(cells).map(td => `"${td.innerText}"`).join(",");
+        csv += line + "\n";
+      });
+      const blob = new Blob([csv], { type: "text/csv" });
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "sources.csv");
+      link.href = URL.createObjectURL(blob);
+      link.download = "sources.csv";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -51,7 +69,7 @@
 
     function clearAll() {
       document.getElementById("url").value = "";
-      document.getElementById("output").value = "";
+      document.getElementById("output").innerHTML = "";
     }
   </script>
 </body>
