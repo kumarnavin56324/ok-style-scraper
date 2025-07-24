@@ -1,75 +1,116 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Media Source Extractor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IP House - Media Source Extractor</title>
   <style>
-    body { font-family: Arial; margin: 20px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    th, td { border: 1px solid #999; padding: 8px; text-align: left; }
-    th { background-color: #f2f2f2; }
-    textarea { width: 100%; height: 100px; }
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f4fa;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    h1 {
+      color: #fff;
+      background-color: #1c3d5a;
+      padding: 15px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    input, button {
+      padding: 10px;
+      margin-right: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button {
+      background-color: #1c3d5a;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2d567c;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #1c3d5a;
+      color: white;
+    }
   </style>
 </head>
 <body>
-  <h2>Media Source Extractor (Multi-URL)</h2>
-  <textarea id="url" placeholder="Enter multiple URLs, one per line"></textarea><br><br>
-  <button onclick="extract()">Extract URLs</button>
-  <button onclick="copyTable()">Copy Table</button>
+  <h1>IP House - Media Source Extractor</h1>
+  <textarea id="urlInput" rows="4" style="width: 70%;" placeholder="Enter one or more URLs, one per line..."></textarea>
+  <br><br>
+  <button onclick="extractMedia()">Extract URLs</button>
+  <button onclick="copyResult()">Copy Result</button>
   <button onclick="exportCSV()">Export CSV</button>
-  <button onclick="clearAll()">Clear</button>
-
-  <div id="output"></div>
+  <button onclick="clearTable()">Clear</button>
+  <table id="resultTable">
+    <thead>
+      <tr><th>Infringing URL</th><th>Source URL</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
 
   <script>
-    async function extract() {
-      const urls = document.getElementById("url").value.trim().split(/\n+/);
-      let table = "<table><tr><th>Infringing URL</th><th>Source URL</th></tr>";
-      for (let url of urls) {
-        if (!url) continue;
+    async function extractMedia() {
+      const input = document.getElementById("urlInput").value.trim();
+      const urls = input.split("\n").map(u => u.trim()).filter(Boolean);
+      const table = document.querySelector("#resultTable tbody");
+      table.innerHTML = "";
+      for (const url of urls) {
         try {
-          const res = await fetch("/extract?url=" + encodeURIComponent(url));
+          const res = await fetch(`/extract?url=${encodeURIComponent(url)}`);
           const data = await res.json();
-          if (data.sources && data.sources.length > 0) {
-            data.sources.forEach(src => {
-              table += `<tr><td>${url}</td><td>${src}</td></tr>`;
+          if (data.sources.length) {
+            data.sources.forEach(source => {
+              const row = table.insertRow();
+              row.insertCell(0).textContent = url;
+              row.insertCell(1).textContent = source;
             });
           } else {
-            table += `<tr><td>${url}</td><td>No sources found</td></tr>`;
+            const row = table.insertRow();
+            row.insertCell(0).textContent = url;
+            row.insertCell(1).textContent = "No media found";
           }
-        } catch (e) {
-          table += `<tr><td>${url}</td><td>Error fetching</td></tr>`;
+        } catch (err) {
+          const row = table.insertRow();
+          row.insertCell(0).textContent = url;
+          row.insertCell(1).textContent = "Error fetching URL";
         }
       }
-      table += "</table>";
-      document.getElementById("output").innerHTML = table;
     }
-
-    function copyTable() {
-      const table = document.getElementById("output").innerText;
-      navigator.clipboard.writeText(table);
+    function copyResult() {
+      const text = [...document.querySelectorAll("#resultTable tbody tr")]
+        .map(row => [...row.cells].map(td => td.textContent).join("\t"))
+        .join("\n");
+      navigator.clipboard.writeText(text);
     }
-
     function exportCSV() {
-      let csv = "Infringing URL,Source URL\n";
-      document.querySelectorAll("table tr").forEach((row, i) => {
-        if (i === 0) return;
-        const cells = row.querySelectorAll("td");
-        const line = Array.from(cells).map(td => `"${td.innerText}"`).join(",");
-        csv += line + "\n";
-      });
+      const rows = [["Infringing URL", "Source URL"], ...[...document.querySelectorAll("#resultTable tbody tr")]
+        .map(row => [...row.cells].map(td => td.textContent))];
+      const csv = rows.map(r => r.join(",")).join("\n");
       const blob = new Blob([csv], { type: "text/csv" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "sources.csv";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "media_sources.csv";
+      a.click();
     }
-
-    function clearAll() {
-      document.getElementById("url").value = "";
-      document.getElementById("output").innerHTML = "";
+    function clearTable() {
+      document.querySelector("#resultTable tbody").innerHTML = "";
     }
   </script>
 </body>
